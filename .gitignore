@@ -12,6 +12,14 @@ wheels/
 *.onnx
 *.bin
 *.litertlm
+*.gguf
+*.zip
+Gemma_Models/
+llama-bin-cuda/
+Omni_Dependency_models/models/
+Omni_Dependency_models/*.dll
+Omni_Dependency_models/*.exe
+Omni_Dependency_models/
 
 # Generated benchmark artifacts
 benchmarks/fixtures/

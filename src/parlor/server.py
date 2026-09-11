@@ -20,7 +20,8 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-sys.stdout.reconfigure(line_buffering=True)  # logs stream even when piped
+sys.stdout.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")  # logs stream even when piped
+sys.stderr.reconfigure(line_buffering=True, encoding="utf-8", errors="replace")
 
 import numpy as np
 import uvicorn
@@ -50,9 +51,10 @@ from parlor.pipeline import (estimate_tokens, pad_tail_silence, prime_cache,
 # Asking Gemma to judge it instead scores at chance on audio — see
 # benchmarks/turnbench.py, which still reproduces those two variants.
 SYSTEM_PROMPT = (
-    "You are a friendly, conversational AI assistant. The user talks to you "
+    "You are a friendly, multilingual conversational AI assistant. The user talks to you "
     "through a microphone and may show you their camera. Your replies are "
     "spoken aloud, so write plain conversational text without formatting. "
+    "Always reply in the same language that the user spoke to you. "
     "If an audio message is just your own previous reply playing back "
     "(echo), don't answer it — briefly ask what they'd like to talk about."
 )
@@ -200,7 +202,7 @@ RESPOND_PROMPT = (
     "Begin your reply with one line: ###TRANSCRIPT: followed by the exact "
     "words the user said in this message's audio." + NO_SPEECH_CLAUSE +
     " Then, on a new line, respond "
-    "to them: 1-4 short sentences, spoken aloud.{camera}"
+    "to them in the same language they spoke: 1-4 short sentences, spoken aloud.{camera}"
 )
 
 # The clause a camera turn appends to its instruction — a named constant
@@ -224,7 +226,7 @@ FLUSH_PROMPT = (
     "words the user said in this message's audio." + NO_SPEECH_CLAUSE +
     " The user paused mid-thought, "
     "so on a new line: if their words feel unfinished, write one short, warm "
-    "sentence encouraging them to continue; otherwise respond to them in 1-4 "
+    "sentence encouraging them to continue; otherwise respond to them in the same language they spoke in 1-4 "
     "short sentences, spoken aloud.{camera}"
 )
 
@@ -319,11 +321,43 @@ async def root():
     return HTMLResponse(content=html.replace("{{model}}", llama.model_label()))
 
 
-def turn_instruction(msg: dict, has_image: bool, has_audio: bool) -> str:
+def last_user_language(history: list) -> str | None:
+    """Inspect history from newest to oldest for the user's spoken language."""
+    for msg in reversed(history):
+        if msg.get("role") == "user":
+            content = msg.get("content", "")
+            if isinstance(content, str) and not content.startswith("Begin your reply"):
+                lang = tts.detect_language(content)
+                if lang != "en":
+                    return lang
+        elif msg.get("role") == "assistant":
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                # Check ###TRANSCRIPT: line emitted by assistant
+                for line in content.splitlines():
+                    if line.startswith("###TRANSCRIPT:"):
+                        tr = line[len("###TRANSCRIPT:"):].strip()
+                        if tr and not tr.startswith("(") and not tr.startswith("["):
+                            lang = tts.detect_language(tr)
+                            if lang != "en":
+                                return lang
+    return None
+
+
+def turn_instruction(msg: dict, has_image: bool, has_audio: bool, history: list | None = None) -> str:
     if has_audio:
         camera = CAMERA_CLAUSE if has_image else ""
         prompt = FLUSH_PROMPT if msg.get("type") == "flush" else RESPOND_PROMPT
-        return prompt.format(camera=camera)
+        instruction = prompt.format(camera=camera)
+        if history:
+            prev_lang = last_user_language(history)
+            if prev_lang and prev_lang in tts.LANGUAGE_NAMES:
+                lang_name = tts.LANGUAGE_NAMES[prev_lang]
+                instruction += (
+                    f" The user is speaking {lang_name}. You MUST reply entirely in {lang_name}, "
+                    f"even if earlier responses were in English."
+                )
+        return instruction
     if has_image:
         return "The user is showing you their camera. Describe what you see."
     return msg.get("text", "Hello!")
@@ -786,7 +820,7 @@ async def websocket_endpoint(ws: WebSocket):
                 elif mode.name in MODE_PROMPTS and has_audio:
                     instruction = MODE_PROMPTS[mode.name]
                 else:
-                    instruction = turn_instruction(msg, bool(image), has_audio)
+                    instruction = turn_instruction(msg, bool(image), has_audio, history=history)
                 # Elapsed quiet, and whether a silent turn gets a spoken
                 # line, are per-mode policy — see modes.py for the whys.
                 gap = time.time() - last_activity["t"]

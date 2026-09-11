@@ -44,6 +44,31 @@ def resolve_model_paths() -> tuple[str, str]:
     mmproj = os.environ.get("MMPROJ_PATH", "")
     if model and mmproj:
         return model, mmproj
+
+    # Check local Gemma_Models directory first (offline local storage)
+    project_root = Path(__file__).resolve().parent.parent.parent
+    local_gemma_dir = project_root / "Gemma_Models"
+    if local_gemma_dir.exists():
+        if MODEL in ("e4b", "eb4"):
+            local_model = local_gemma_dir / "gemma-4-E4B_q4_0-it.gguf"
+            local_mmproj = local_gemma_dir / "gemma-4-E4B-it-mmproj.gguf"
+            if local_model.exists() and local_mmproj.exists():
+                return str(local_model), str(local_mmproj)
+        elif MODEL == "12b":
+            # Match 12b model and mmproj filenames in Gemma_Models
+            candidates_12b = [
+                local_gemma_dir / "gemma-4-12b-it-Q4_0.gguf",
+                local_gemma_dir / "gemma-4-12b-it-qat-q4_0.gguf",
+            ]
+            candidates_mmproj = [
+                local_gemma_dir / "gemma-4-12b-mmproj-F16.gguf",
+                local_gemma_dir / "mmproj-gemma-4-12b-it-qat-q4_0.gguf",
+            ]
+            found_m = next((m for m in candidates_12b if m.exists()), None)
+            found_p = next((p for p in candidates_mmproj if p.exists()), None)
+            if found_m and found_p:
+                return str(found_m), str(found_p)
+
     if MODEL not in MODELS:
         raise RuntimeError(f"MODEL={MODEL!r} — expected one of {', '.join(MODELS)}")
     repo, gguf, mmproj_file = MODELS[MODEL]
@@ -95,10 +120,14 @@ def _hint(verb: str) -> str:
 
 
 def server_command() -> list[str]:
-    """The llama.cpp server invocation. Homebrew and the release tarballs
-    install `llama-server`; llama.cpp's first-party installer
-    (llama.app/install.sh) instead ships a unified `llama` binary whose
-    `serve` subcommand is the same server."""
+    """The llama.cpp server invocation.
+    Prioritizes the project's dedicated CUDA binary (llama-bin-cuda),
+    then falls back to system llama-server or unified llama binary."""
+    project_root = Path(__file__).resolve().parent.parent.parent
+    cuda_server = project_root / "llama-bin-cuda" / ("llama-server.exe" if sys.platform == "win32" else "llama-server")
+    if cuda_server.exists():
+        return [str(cuda_server)]
+
     binary = shutil.which("llama-server")
     if binary:
         return [binary]
@@ -165,8 +194,14 @@ def start() -> None:
 
 
 def stop() -> None:
+    global _proc
     if _proc:
         _proc.terminate()
+        try:
+            _proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _proc.kill()
+        _proc = None
 
 
 def _chat_body(messages: list, max_tokens: int, stream: bool,

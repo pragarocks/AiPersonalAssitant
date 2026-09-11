@@ -263,7 +263,7 @@ def _instruction_text(messages: list) -> str:
 async def run_turn(ws, messages: list, interrupted: asyncio.Event,
                    active: dict, tts_backend, expect_transcript: bool = True,
                    p_complete: float | None = None,
-                   tts_voice: str = "af_heart",
+                   tts_voice: str = "female, young adult, moderate pitch",
                    proactive: bool = False,
                    fallback: str | None = None
                    ) -> tuple[str, int | None, bool, bool]:
@@ -434,7 +434,7 @@ async def run_turn(ws, messages: list, interrupted: asyncio.Event,
 
     print(
         f"LLM ({timings['llm_time']:.2f}s, prefill {timings.get('prefill_s')}s) "
-        f"heard: {transcript!r} → {parser.response.strip()!r}"
+        f"heard: {transcript!r} -> {parser.response.strip()!r}"
     )
 
     def turn_no_speech() -> bool:

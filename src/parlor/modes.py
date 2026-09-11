@@ -24,20 +24,20 @@ class Mode:
     wants_camera: bool        # accept + cache-prime camera frames
     wants_time_note: bool     # elapsed-quiet note on the turn instruction
     speaks_fallback: bool     # a turn that yields no speech still says a line
-    tts_voice: str            # per-mode Kokoro voice (carries the language)
+    tts_voice: str            # per-mode TTS voice instruction (e.g. constant female voice)
 
 
 MODES = {m.name: m for m in [
     Mode("conversation", uses_smart_turn=True, allows_delegation=True,
          wants_camera=True, wants_time_note=True, speaks_fallback=True,
-         tts_voice="af_heart"),
+         tts_voice="female, young adult, moderate pitch"),
     # An interpreter waits only for a short silence, never for a "complete
     # thought" — a mid-sentence thinking pause must not stall translation —
     # and never mixes research or camera chatter into the rendering. No time
     # note either: an interpreter would render it into the translation.
     Mode("translate", uses_smart_turn=False, allows_delegation=False,
          wants_camera=False, wants_time_note=False, speaks_fallback=True,
-         tts_voice="af_heart"),
+         tts_voice="female, young adult, moderate pitch"),
     # A silent scribe: the user thinks out loud, Parlor transcribes and
     # stays quiet until spoken TO (the exit path lives in LISTEN_PROMPT).
     # VAD-only segmentation — nothing gets answered, so utterance
@@ -46,5 +46,5 @@ MODES = {m.name: m for m in [
     # time note stays, feeding the exit question ("how long was I at it?").
     Mode("listen", uses_smart_turn=False, allows_delegation=False,
          wants_camera=False, wants_time_note=True, speaks_fallback=False,
-         tts_voice="af_heart"),
+         tts_voice="female, young adult, moderate pitch"),
 ]}

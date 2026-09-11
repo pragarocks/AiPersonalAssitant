@@ -25,34 +25,31 @@ WARMUP = 2
 RUNS = 5
 
 
-def benchmark_kokoro_onnx():
-    """Benchmark kokoro-onnx (ONNX Runtime, CPU)."""
-    import kokoro_onnx
-    from huggingface_hub import hf_hub_download
+def benchmark_omnivoice_cpp():
+    """Benchmark omnivoice.cpp (local server)."""
+    sys.path.insert(0, "src")
+    from parlor import tts
 
-    model_path = hf_hub_download("fastrtc/kokoro-onnx", "kokoro-v1.0.onnx")
-    voices_path = hf_hub_download("fastrtc/kokoro-onnx", "voices-v1.0.bin")
-
-    print("Loading kokoro-onnx...")
+    print("Loading omnivoice.cpp...")
     t0 = time.time()
-    tts = kokoro_onnx.Kokoro(model_path, voices_path)
+    backend = tts.OmniVoiceCPPBackend()
     print(f"  Loaded in {time.time() - t0:.2f}s")
 
     results = {}
     for label, text in SENTENCES.items():
         # Warmup
         for _ in range(WARMUP):
-            tts.create(text, voice=VOICE, speed=SPEED)
+            backend.generate(text, voice="female", speed=SPEED)
 
         # Timed runs
         times = []
         audio_duration = None
         for _ in range(RUNS):
             t0 = time.time()
-            pcm, sr = tts.create(text, voice=VOICE, speed=SPEED)
+            pcm = backend.generate(text, voice="female", speed=SPEED)
             elapsed = time.time() - t0
             times.append(elapsed)
-            audio_duration = len(pcm) / sr
+            audio_duration = len(pcm) / backend.sample_rate
 
         results[label] = {
             "times": times,
@@ -61,7 +58,7 @@ def benchmark_kokoro_onnx():
             "min": min(times),
             "audio_sec": audio_duration,
             "rtf": statistics.mean(times) / audio_duration,
-            "sample_rate": sr,
+            "sample_rate": backend.sample_rate,
         }
 
     return results
@@ -183,14 +180,14 @@ if __name__ == "__main__":
 
     print("=" * 60)
     if is_apple:
-        print("  TTS Benchmark: kokoro-onnx vs mlx-audio")
+        print("  TTS Benchmark: omnivoice.cpp vs mlx-audio")
     else:
-        print("  TTS Benchmark: kokoro-onnx")
+        print("  TTS Benchmark: omnivoice.cpp")
     print(f"  Warmup: {WARMUP} runs, Measured: {RUNS} runs")
     print("=" * 60)
 
-    onnx_results = benchmark_kokoro_onnx()
-    print_results("kokoro-onnx (ONNX Runtime, CPU)", onnx_results)
+    omni_results = benchmark_omnivoice_cpp()
+    print_results("omnivoice.cpp (local server)", omni_results)
 
     if is_apple:
         mlx_results = benchmark_mlx_audio()
@@ -201,10 +198,10 @@ if __name__ == "__main__":
 
         # Comparison
         print(f"\n{'=' * 60}")
-        print(f"  Comparison: speedup of mlx-audio over kokoro-onnx")
+        print(f"  Comparison: speedup of mlx-audio over omnivoice.cpp")
         print(f"{'=' * 60}")
         for label in SENTENCES:
-            onnx_mean = onnx_results[label]["mean"]
+            omni_mean = omni_results[label]["mean"]
             mlx_mean = mlx_results[label]["mean"]
-            speedup = onnx_mean / mlx_mean
-            print(f"  [{label}]  {onnx_mean*1000:.0f}ms -> {mlx_mean*1000:.0f}ms  ({speedup:.2f}x {'faster' if speedup > 1 else 'slower'})")
+            speedup = omni_mean / mlx_mean
+            print(f"  [{label}]  {omni_mean*1000:.0f}ms -> {mlx_mean*1000:.0f}ms  ({speedup:.2f}x {'faster' if speedup > 1 else 'slower'})")

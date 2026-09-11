@@ -101,7 +101,7 @@ class Server:
     log_path: Path | None = None
 
     def log(self) -> str:
-        return self.log_path.read_text() if self.log_path else ""
+        return self.log_path.read_text(encoding="utf-8", errors="replace") if self.log_path else ""
 
     def require_managed(self) -> None:
         if self.proc is None:
@@ -160,20 +160,21 @@ def server(tmp_path_factory, reasoner_mock) -> Server:
             proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
             proc.kill()
-        subprocess.run(["bash", "-c", f"kill $(lsof -ti :{TEST_LLAMA_PORT}) 2>/dev/null"])
+        if sys.platform != "win32":
+            subprocess.run(["bash", "-c", f"kill $(lsof -ti :{TEST_LLAMA_PORT}) 2>/dev/null"])
 
     try:
         deadline = time.time() + STARTUP_TIMEOUT_S
         while True:
             if proc.poll() is not None:
-                pytest.fail(f"server exited during startup:\n{log_path.read_text()[-3000:]}")
+                pytest.fail(f"server exited during startup:\n{log_path.read_text(encoding='utf-8', errors='replace')[-3000:]}")
             try:
                 urllib.request.urlopen(f"http://127.0.0.1:{TEST_PORT}/", timeout=2)
                 break
             except OSError:
                 if time.time() > deadline:
                     pytest.fail(f"server not ready in {STARTUP_TIMEOUT_S}s:\n"
-                                f"{log_path.read_text()[-3000:]}")
+                                f"{log_path.read_text(encoding='utf-8', errors='replace')[-3000:]}")
                 time.sleep(2)
 
         yield Server(url=f"ws://127.0.0.1:{TEST_PORT}/ws", proc=proc, log_path=log_path)
