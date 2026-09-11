@@ -8,6 +8,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.3/lib/three-vrm.module.js",
+    "@pixiv/three-vrm-animation": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm-animation@2.1.3/lib/three-vrm-animation.module.js"
+  }
+}
+</script>
 </head>
 <body>
 
@@ -21,10 +31,21 @@
 </header>
 
 <div class="portal-stack">
-  <!-- Webcam viewport with glow layers -->
-  <div id="viewportWrap" class="viewport-wrap loading">
+  <!-- 3D Avatar & Webcam viewport with glow layers -->
+  <div id="viewportWrap" class="viewport-wrap mode-avatar loading">
     <div class="viewport-glow"></div>
-    <video id="video" autoplay muted playsinline></video>
+
+    <!-- Amica 3D VRM Canvas -->
+    <canvas id="vrmCanvas"></canvas>
+
+    <!-- Picture-in-Picture / Camera Viewport -->
+    <div id="pipWrap" class="pip-wrap">
+      <video id="video" autoplay muted playsinline></video>
+      <div class="pip-overlay">
+        <span class="pip-badge">Vision Cam</span>
+        <button id="pipExpandBtn" class="pip-btn" title="Expand Camera View">⛶</button>
+      </div>
+    </div>
   </div>
 
   <!-- Audio waveform visualizer -->
@@ -37,6 +58,11 @@
 
   <!-- Controls -->
   <div class="controls">
+    <button id="viewToggle" class="ctrl-btn active">Avatar View</button>
+    <label class="ctrl-btn file-btn" title="Load custom .vrm model">
+      <span>Load VRM</span>
+      <input type="file" id="vrmFileInput" accept=".vrm" style="display:none;">
+    </label>
     <button id="cameraToggle" class="ctrl-btn active">Camera On</button>
     <div id="modeChip" class="mode-chip" hidden>
       <span id="modeLabel">Translating → English</span>
@@ -55,6 +81,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.29/dist/bundle.min.js"></script>
-<script src="/static/app.js"></script>
+<script type="module" src="/static/app.js"></script>
 </body>
 </html>

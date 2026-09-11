@@ -1,3 +1,5 @@
+import { VRMViewer } from './vrm_viewer.js';
+
 const $ = id => document.getElementById(id);
 const video = $('video'), cameraToggle = $('cameraToggle');
 const messagesDiv = $('messages'), statusEl = $('status');
@@ -5,6 +7,23 @@ const stateDot = $('stateDot'), stateText = $('stateText');
 const viewportWrap = $('viewportWrap');
 const waveformCanvas = $('waveform');
 const waveformCtx = waveformCanvas.getContext('2d');
+const vrmCanvas = $('vrmCanvas');
+const viewToggle = $('viewToggle');
+const pipExpandBtn = $('pipExpandBtn');
+const pipWrap = $('pipWrap');
+const vrmFileInput = $('vrmFileInput');
+
+let currentViewMode = 'avatar'; // 'avatar' | 'split' | 'camera'
+let vrmViewer = null;
+
+if (vrmCanvas) {
+  try {
+    vrmViewer = new VRMViewer(vrmCanvas);
+    vrmViewer.loadVRM('/static/vrm/AvatarSample_B.vrm');
+  } catch (e) {
+    console.error('Failed to initialize VRMViewer:', e);
+  }
+}
 
 let ws, mediaStream, myvad;
 let cameraEnabled = true;
@@ -114,7 +133,11 @@ function setState(newState) {
   const labels = { loading: 'Loading...', listening: 'Listening', processing: 'Thinking...', speaking: 'Speaking' };
   stateText.textContent = labels[newState] || newState;
 
-  viewportWrap.className = `viewport-wrap ${newState}`;
+  viewportWrap.className = `viewport-wrap mode-${currentViewMode} ${newState}`;
+
+  if (vrmViewer) {
+    vrmViewer.onStateChange(newState);
+  }
 
   // Reset inline styles from speaking glow
   if (newState !== 'speaking') {
@@ -678,6 +701,10 @@ function stopPlayback() {
   }
   streamSources = [];
   streamNextTime = 0;
+  if (vrmViewer) {
+    vrmViewer.isSpeaking = false;
+    vrmViewer.currentMouthOpen = 0;
+  }
 }
 
 // TTS plays straight to the WebAudio destination. We tried routing it
@@ -695,6 +722,9 @@ function ensureAudioCtx() {
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.75;
   }
+  if (vrmViewer) {
+    vrmViewer.setAudioSource(audioCtx, analyser);
+  }
 }
 
 function startStreamPlayback() {
@@ -708,6 +738,9 @@ function startStreamPlayback() {
 
 function queueAudioChunk(base64Pcm) {
   ensureAudioCtx();
+  if (vrmViewer) {
+    vrmViewer.isSpeaking = true;
+  }
 
   // Decode base64 -> Int16 PCM -> Float32
   const bin = atob(base64Pcm);
@@ -757,7 +790,8 @@ cameraToggle.addEventListener('click', () => {
   cameraEnabled = !cameraEnabled;
   cameraToggle.classList.toggle('active', cameraEnabled);
   cameraToggle.textContent = cameraEnabled ? 'Camera On' : 'Camera Off';
-  video.style.opacity = cameraEnabled ? 1 : 0.3;
+  video.style.opacity = cameraEnabled ? 1 : 0.2;
+  if (pipWrap) pipWrap.style.opacity = cameraEnabled ? 1 : 0.2;
 });
 
 // ── Init ──
@@ -814,6 +848,46 @@ async function init() {
   drawWaveform();
 
   console.log('VAD initialized and listening');
+}
+
+// ── Layout View Mode Switching (Avatar / Split / Camera) ──
+function setViewMode(mode) {
+  currentViewMode = mode;
+  viewportWrap.className = `viewport-wrap mode-${currentViewMode} ${state}`;
+  if (viewToggle) {
+    const labels = {
+      avatar: 'Avatar View',
+      split: 'Split View',
+      camera: 'Camera View'
+    };
+    viewToggle.textContent = labels[mode] || 'View';
+    viewToggle.classList.toggle('active', mode !== 'camera');
+  }
+}
+
+if (viewToggle) {
+  const modes = ['avatar', 'split', 'camera'];
+  viewToggle.addEventListener('click', () => {
+    const idx = (modes.indexOf(currentViewMode) + 1) % modes.length;
+    setViewMode(modes[idx]);
+  });
+}
+
+if (pipExpandBtn) {
+  pipExpandBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setViewMode(currentViewMode === 'camera' ? 'avatar' : 'camera');
+  });
+}
+
+if (vrmFileInput) {
+  vrmFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (file && vrmViewer) {
+      const url = URL.createObjectURL(file);
+      await vrmViewer.loadVRM(url);
+    }
+  });
 }
 
 init();
