@@ -202,7 +202,9 @@ RESPOND_PROMPT = (
     "Begin your reply with one line: ###TRANSCRIPT: followed by the exact "
     "words the user said in this message's audio." + NO_SPEECH_CLAUSE +
     " Then, on a new line, respond "
-    "to them in the same language they spoke: 1-4 short sentences, spoken aloud.{camera}"
+    "in the exact same language as your ###TRANSCRIPT line above: 1-4 short sentences, spoken aloud. "
+    "If the transcript is English, answer in English; if Tamil, answer in Tamil. "
+    "Never switch to an unrelated language.{camera}"
 )
 
 # The clause a camera turn appends to its instruction — a named constant
@@ -226,7 +228,7 @@ FLUSH_PROMPT = (
     "words the user said in this message's audio." + NO_SPEECH_CLAUSE +
     " The user paused mid-thought, "
     "so on a new line: if their words feel unfinished, write one short, warm "
-    "sentence encouraging them to continue; otherwise respond to them in the same language they spoke in 1-4 "
+    "sentence encouraging them to continue; otherwise respond in the exact same language as your ###TRANSCRIPT line above in 1-4 "
     "short sentences, spoken aloud.{camera}"
 )
 
@@ -321,43 +323,11 @@ async def root():
     return HTMLResponse(content=html.replace("{{model}}", llama.model_label()))
 
 
-def last_user_language(history: list) -> str | None:
-    """Inspect history from newest to oldest for the user's spoken language."""
-    for msg in reversed(history):
-        if msg.get("role") == "user":
-            content = msg.get("content", "")
-            if isinstance(content, str) and not content.startswith("Begin your reply"):
-                lang = tts.detect_language(content)
-                if lang != "en":
-                    return lang
-        elif msg.get("role") == "assistant":
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                # Check ###TRANSCRIPT: line emitted by assistant
-                for line in content.splitlines():
-                    if line.startswith("###TRANSCRIPT:"):
-                        tr = line[len("###TRANSCRIPT:"):].strip()
-                        if tr and not tr.startswith("(") and not tr.startswith("["):
-                            lang = tts.detect_language(tr)
-                            if lang != "en":
-                                return lang
-    return None
-
-
 def turn_instruction(msg: dict, has_image: bool, has_audio: bool, history: list | None = None) -> str:
     if has_audio:
         camera = CAMERA_CLAUSE if has_image else ""
         prompt = FLUSH_PROMPT if msg.get("type") == "flush" else RESPOND_PROMPT
-        instruction = prompt.format(camera=camera)
-        if history:
-            prev_lang = last_user_language(history)
-            if prev_lang and prev_lang in tts.LANGUAGE_NAMES:
-                lang_name = tts.LANGUAGE_NAMES[prev_lang]
-                instruction += (
-                    f" The user is speaking {lang_name}. You MUST reply entirely in {lang_name}, "
-                    f"even if earlier responses were in English."
-                )
-        return instruction
+        return prompt.format(camera=camera)
     if has_image:
         return "The user is showing you their camera. Describe what you see."
     return msg.get("text", "Hello!")
