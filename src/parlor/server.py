@@ -319,7 +319,7 @@ app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web" / "stat
 
 @app.get("/")
 async def root():
-    html = (Path(__file__).parent / "web" / "index.html").read_text()
+    html = (Path(__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
     return HTMLResponse(content=html.replace("{{model}}", llama.model_label()))
 
 
