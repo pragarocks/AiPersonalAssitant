@@ -94,6 +94,40 @@
     letter-spacing: 0.03em;
   }
 
+  /* ── Mode Switcher Tabs ── */
+  .mode-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    padding: 3px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .tab-btn {
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--c-text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tab-btn:hover {
+    color: var(--c-text);
+  }
+
+  .tab-btn.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--c-text-bright);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
   .on-device-pill {
     font-size: 10px;
     font-weight: 500;
@@ -230,36 +264,19 @@
   .viewport-wrap.loading::after { animation-duration: 6s; opacity: 0.2; }
   .viewport-wrap.loading .viewport-glow { animation-duration: 7s; opacity: 0.1; }
 
-  /* ── 3D VRM Canvas ── */
-  #vrmCanvas {
+  /* ── Video Wrap & Video ── */
+  .video-wrap {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
-    display: block;
     border-radius: 18px;
-    background: radial-gradient(circle at center, #151522 0%, #08080f 100%);
+    overflow: hidden;
     z-index: 2;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* ── Picture-in-Picture / Camera Wrap ── */
-  .pip-wrap {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    width: 148px;
-    aspect-ratio: 16/9;
-    border-radius: 12px;
-    overflow: hidden;
-    z-index: 5;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-    background: #000;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .pip-wrap video {
+  video {
     display: block;
     width: 100%;
     height: 100%;
@@ -268,83 +285,106 @@
     transform: scaleX(-1);
   }
 
-  .pip-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 6px 8px;
-    pointer-events: none;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 60%);
-  }
-
-  .pip-badge {
-    font-size: 9px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: rgba(0, 0, 0, 0.5);
-    color: #94a3b8;
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .pip-btn {
-    pointer-events: auto;
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #cbd5e1;
-    font-size: 11px;
-    cursor: pointer;
-    padding: 2px 5px;
-    border-radius: 4px;
-    transition: background 0.2s;
-  }
-  .pip-btn:hover { background: rgba(255, 255, 255, 0.2); }
-
-  /* ── Layout Modes ── */
-  /* Avatar Mode (Default) */
-  .viewport-wrap.mode-avatar #vrmCanvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-
-  /* Split Mode: Avatar left, camera right */
-  .viewport-wrap.mode-split #vrmCanvas {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 50%;
-    height: 100%;
-    border-radius: 18px 0 0 18px;
-  }
-  .viewport-wrap.mode-split .pip-wrap {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 50%;
-    height: 100%;
-    border-radius: 0 18px 18px 0;
-    box-shadow: none;
-    border: none;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  /* Camera Mode: Camera full, Avatar hidden */
-  .viewport-wrap.mode-camera #vrmCanvas {
-    display: none;
-  }
-  .viewport-wrap.mode-camera .pip-wrap {
+  /* ── Avatar Stage ── */
+  .avatar-stage {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     border-radius: 18px;
-    box-shadow: none;
+    overflow: hidden;
+    z-index: 2;
+    background: radial-gradient(circle at center, #18192a 0%, #07070e 100%);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── Mode: Visual Mode (Default Old Mode) ── */
+  .viewport-wrap.view-visual .video-wrap {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 18px;
     border: none;
+    box-shadow: none;
+  }
+  .viewport-wrap.view-visual .pip-label {
+    display: none !important;
+  }
+  .viewport-wrap.view-visual .avatar-stage {
+    display: none !important;
+  }
+
+  /* ── Mode: VRMA Avatar Mode (Maya Layout) ── */
+  .viewport-wrap.view-avatar .avatar-stage {
+    display: block !important;
+  }
+  .viewport-wrap.view-avatar .video-wrap {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 140px;
+    height: 105px;
+    aspect-ratio: 4/3;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    z-index: 10;
+    background: #000;
+  }
+  .viewport-wrap.view-avatar .pip-label {
+    display: block !important;
+    position: absolute;
+    bottom: 6px;
+    left: 6px;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(0, 0, 0, 0.65);
+    color: #94a3b8;
+    padding: 2px 5px;
+    border-radius: 4px;
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* ── Maya Actions Bar ── */
+  .maya-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    max-width: 640px;
+    margin-top: 10px;
+    z-index: 2;
+  }
+
+  .action-btn {
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 5px 11px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--c-text);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .action-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--c-text-bright);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .action-btn.file-btn {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
   }
 
   /* ── Waveform canvas ── */

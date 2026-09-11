@@ -26,26 +26,43 @@
     <div class="logo-mark"></div>
     <h1>Parlor</h1>
   </div>
+  
+  <!-- Mode Switcher Tabs -->
+  <div class="mode-tabs">
+    <button id="btnVisualMode" class="tab-btn active">Visual Mode</button>
+    <button id="btnAvatarMode" class="tab-btn">VRMA Avatar Mode</button>
+  </div>
+
   <span class="model-label">{{model}}</span>
   <div id="status" class="status-pill disconnected">Disconnected</div>
 </header>
 
 <div class="portal-stack">
-  <!-- 3D Avatar & Webcam viewport with glow layers -->
-  <div id="viewportWrap" class="viewport-wrap mode-avatar loading">
+  <!-- Viewport container with glow layers -->
+  <div id="viewportWrap" class="viewport-wrap view-visual loading">
     <div class="viewport-glow"></div>
 
-    <!-- Amica 3D VRM Canvas -->
-    <canvas id="vrmCanvas"></canvas>
-
-    <!-- Picture-in-Picture / Camera Viewport -->
-    <div id="pipWrap" class="pip-wrap">
+    <!-- 1. Video Container (Full size in Visual Mode, compact PiP in Avatar Mode) -->
+    <div id="videoWrap" class="video-wrap">
       <video id="video" autoplay muted playsinline></video>
-      <div class="pip-overlay">
-        <span class="pip-badge">Vision Cam</span>
-        <button id="pipExpandBtn" class="pip-btn" title="Expand Camera View">⛶</button>
-      </div>
+      <div id="pipLabel" class="pip-label" style="display:none;">Vision Cam</div>
     </div>
+
+    <!-- 2. Maya/Amica 3D VRM Stage (Full size in Avatar Mode, hidden in Visual Mode) -->
+    <div id="avatarStage" class="avatar-stage" style="display:none;"></div>
+  </div>
+
+  <!-- Maya Avatar Quick Actions Bar (Shown only in Avatar Mode) -->
+  <div id="mayaActions" class="maya-actions" style="display:none;">
+    <button class="action-btn" data-gesture="wave">👋 Wave</button>
+    <button class="action-btn" data-gesture="nod">🙂 Nod</button>
+    <button class="action-btn" data-gesture="thinking">🤔 Think</button>
+    <button class="action-btn" data-gesture="clap">👏 Clap</button>
+    <button class="action-btn" data-gesture="lookAround">👀 Look Around</button>
+    <label class="action-btn file-btn" title="Load custom .vrm file">
+      📁 Load .vrm
+      <input type="file" id="vrmInput" accept=".vrm" style="display:none;">
+    </label>
   </div>
 
   <!-- Audio waveform visualizer -->
@@ -58,11 +75,6 @@
 
   <!-- Controls -->
   <div class="controls">
-    <button id="viewToggle" class="ctrl-btn active">Avatar View</button>
-    <label class="ctrl-btn file-btn" title="Load custom .vrm model">
-      <span>Load VRM</span>
-      <input type="file" id="vrmFileInput" accept=".vrm" style="display:none;">
-    </label>
     <button id="cameraToggle" class="ctrl-btn active">Camera On</button>
     <div id="modeChip" class="mode-chip" hidden>
       <span id="modeLabel">Translating → English</span>

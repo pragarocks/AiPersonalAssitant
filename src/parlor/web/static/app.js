@@ -1,4 +1,4 @@
-import { VRMViewer } from './vrm_viewer.js';
+import { MayaAvatarController } from './maya_avatar.js';
 
 const $ = id => document.getElementById(id);
 const video = $('video'), cameraToggle = $('cameraToggle');
@@ -7,23 +7,15 @@ const stateDot = $('stateDot'), stateText = $('stateText');
 const viewportWrap = $('viewportWrap');
 const waveformCanvas = $('waveform');
 const waveformCtx = waveformCanvas.getContext('2d');
-const vrmCanvas = $('vrmCanvas');
-const viewToggle = $('viewToggle');
-const pipExpandBtn = $('pipExpandBtn');
-const pipWrap = $('pipWrap');
-const vrmFileInput = $('vrmFileInput');
+const videoWrap = $('videoWrap');
+const avatarStage = $('avatarStage');
+const mayaActions = $('mayaActions');
+const btnVisualMode = $('btnVisualMode');
+const btnAvatarMode = $('btnAvatarMode');
+const vrmInput = $('vrmInput');
 
-let currentViewMode = 'avatar'; // 'avatar' | 'split' | 'camera'
-let vrmViewer = null;
-
-if (vrmCanvas) {
-  try {
-    vrmViewer = new VRMViewer(vrmCanvas);
-    vrmViewer.loadVRM('/static/vrm/AvatarSample_B.vrm');
-  } catch (e) {
-    console.error('Failed to initialize VRMViewer:', e);
-  }
-}
+let currentMode = 'visual'; // 'visual' | 'avatar'
+let avatarController = null;
 
 let ws, mediaStream, myvad;
 let cameraEnabled = true;
@@ -133,10 +125,10 @@ function setState(newState) {
   const labels = { loading: 'Loading...', listening: 'Listening', processing: 'Thinking...', speaking: 'Speaking' };
   stateText.textContent = labels[newState] || newState;
 
-  viewportWrap.className = `viewport-wrap mode-${currentViewMode} ${newState}`;
+  viewportWrap.className = `viewport-wrap view-${currentMode} ${newState}`;
 
-  if (vrmViewer) {
-    vrmViewer.onStateChange(newState);
+  if (avatarController) {
+    avatarController.onStateChange(newState);
   }
 
   // Reset inline styles from speaking glow
@@ -701,9 +693,8 @@ function stopPlayback() {
   }
   streamSources = [];
   streamNextTime = 0;
-  if (vrmViewer) {
-    vrmViewer.isSpeaking = false;
-    vrmViewer.currentMouthOpen = 0;
+  if (avatarController) {
+    avatarController.disconnectAnalyser();
   }
 }
 
@@ -722,8 +713,8 @@ function ensureAudioCtx() {
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.75;
   }
-  if (vrmViewer) {
-    vrmViewer.setAudioSource(audioCtx, analyser);
+  if (avatarController && analyser) {
+    avatarController.connectAnalyser(analyser);
   }
 }
 
@@ -738,8 +729,8 @@ function startStreamPlayback() {
 
 function queueAudioChunk(base64Pcm) {
   ensureAudioCtx();
-  if (vrmViewer) {
-    vrmViewer.isSpeaking = true;
+  if (avatarController && analyser) {
+    avatarController.connectAnalyser(analyser);
   }
 
   // Decode base64 -> Int16 PCM -> Float32
@@ -790,8 +781,8 @@ cameraToggle.addEventListener('click', () => {
   cameraEnabled = !cameraEnabled;
   cameraToggle.classList.toggle('active', cameraEnabled);
   cameraToggle.textContent = cameraEnabled ? 'Camera On' : 'Camera Off';
-  video.style.opacity = cameraEnabled ? 1 : 0.2;
-  if (pipWrap) pipWrap.style.opacity = cameraEnabled ? 1 : 0.2;
+  video.style.opacity = cameraEnabled ? '1' : '0.2';
+  if (videoWrap) videoWrap.style.opacity = cameraEnabled ? '1' : '0.2';
 });
 
 // ── Init ──
@@ -850,44 +841,63 @@ async function init() {
   console.log('VAD initialized and listening');
 }
 
-// ── Layout View Mode Switching (Avatar / Split / Camera) ──
-function setViewMode(mode) {
-  currentViewMode = mode;
-  viewportWrap.className = `viewport-wrap mode-${currentViewMode} ${state}`;
-  if (viewToggle) {
-    const labels = {
-      avatar: 'Avatar View',
-      split: 'Split View',
-      camera: 'Camera View'
-    };
-    viewToggle.textContent = labels[mode] || 'View';
-    viewToggle.classList.toggle('active', mode !== 'camera');
+// ── Mode Switching: Visual Mode (Original) vs VRMA Avatar Mode (Maya Layout) ──
+function initAvatar() {
+  if (!avatarController && avatarStage) {
+    try {
+      avatarController = new MayaAvatarController(avatarStage, {
+        vrmUrl: '/static/vrm/AvatarSample_B.vrm'
+      });
+      if (analyser) {
+        avatarController.connectAnalyser(analyser);
+      }
+    } catch (e) {
+      console.error('[Maya] Failed to initialize avatar:', e);
+    }
   }
 }
 
-if (viewToggle) {
-  const modes = ['avatar', 'split', 'camera'];
-  viewToggle.addEventListener('click', () => {
-    const idx = (modes.indexOf(currentViewMode) + 1) % modes.length;
-    setViewMode(modes[idx]);
-  });
-}
-
-if (pipExpandBtn) {
-  pipExpandBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setViewMode(currentViewMode === 'camera' ? 'avatar' : 'camera');
-  });
-}
-
-if (vrmFileInput) {
-  vrmFileInput.addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
-    if (file && vrmViewer) {
-      const url = URL.createObjectURL(file);
-      await vrmViewer.loadVRM(url);
+function setAppMode(mode) {
+  currentMode = mode;
+  if (mode === 'visual') {
+    viewportWrap.className = `viewport-wrap view-visual ${state}`;
+    btnVisualMode?.classList.add('active');
+    btnAvatarMode?.classList.remove('active');
+    if (avatarStage) avatarStage.style.display = 'none';
+    if (mayaActions) mayaActions.style.display = 'none';
+    if (avatarController) avatarController.looping = false;
+  } else {
+    viewportWrap.className = `viewport-wrap view-avatar ${state}`;
+    btnAvatarMode?.classList.add('active');
+    btnVisualMode?.classList.remove('active');
+    if (avatarStage) avatarStage.style.display = 'block';
+    if (mayaActions) mayaActions.style.display = 'flex';
+    initAvatar();
+    if (avatarController) {
+      avatarController.looping = true;
+      requestAnimationFrame(avatarController.animate);
+      avatarController.resize();
     }
-  });
+  }
 }
+
+btnVisualMode?.addEventListener('click', () => setAppMode('visual'));
+btnAvatarMode?.addEventListener('click', () => setAppMode('avatar'));
+
+// Maya Quick Action buttons
+document.querySelectorAll('.action-btn[data-gesture]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const gesture = btn.getAttribute('data-gesture');
+    if (avatarController) avatarController.playGesture(gesture);
+  });
+});
+
+vrmInput?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (file && avatarController) {
+    const url = URL.createObjectURL(file);
+    await avatarController.loadVRM(url);
+  }
+});
 
 init();
