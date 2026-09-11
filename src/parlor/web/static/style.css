@@ -351,7 +351,7 @@
 
   /* ── Maya Actions Bar ── */
   .maya-actions {
-    display: flex;
+    display: none;
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
@@ -360,6 +360,14 @@
     max-width: 640px;
     margin-top: 10px;
     z-index: 2;
+  }
+
+  .viewport-wrap.view-visual ~ .maya-actions {
+    display: none !important;
+  }
+
+  .viewport-wrap.view-avatar ~ .maya-actions {
+    display: flex !important;
   }
 
   .action-btn {

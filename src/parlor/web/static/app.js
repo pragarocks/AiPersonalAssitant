@@ -47,16 +47,20 @@ let ambientPhase = 0;
 function initWaveformCanvas() {
   const dpr = window.devicePixelRatio || 1;
   const rect = waveformCanvas.getBoundingClientRect();
-  waveformCanvas.width = rect.width * dpr;
-  waveformCanvas.height = rect.height * dpr;
-  waveformCtx.scale(dpr, dpr);
+  const width = rect.width || waveformCanvas.clientWidth || 480;
+  const height = rect.height || waveformCanvas.clientHeight || 52;
+  waveformCanvas.width = Math.round(width * dpr);
+  waveformCanvas.height = Math.round(height * dpr);
+  waveformCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 function drawWaveform() {
   const { width: w, height: h } = waveformCanvas.getBoundingClientRect();
-  waveformCtx.clearRect(0, 0, w, h);
+  const canvasW = w || 480;
+  const canvasH = h || 52;
+  waveformCtx.clearRect(0, 0, canvasW, canvasH);
 
-  const barWidth = (w - (BAR_COUNT - 1) * BAR_GAP) / BAR_COUNT;
+  const barWidth = (canvasW - (BAR_COUNT - 1) * BAR_GAP) / BAR_COUNT;
   waveformCtx.fillStyle = (STATE_COLORS[state] || STATE_COLORS.loading)[0];
 
   let dataArray = null;
@@ -80,9 +84,9 @@ function drawWaveform() {
       amplitude = 0.03 + drift * 0.04;
     }
 
-    const barH = Math.max(2, amplitude * (h - 4));
+    const barH = Math.max(2, amplitude * (canvasH - 4));
     const x = i * (barWidth + BAR_GAP);
-    const y = (h - barH) / 2;
+    const y = (canvasH - barH) / 2;
 
     waveformCtx.globalAlpha = 0.3 + amplitude * 0.7;
     waveformCtx.beginPath();
@@ -94,6 +98,11 @@ function drawWaveform() {
   waveformCtx.globalAlpha = 1;
   waveformRAF = requestAnimationFrame(drawWaveform);
 }
+
+// Start waveform loop immediately so equalizer is active from frame 1
+initWaveformCanvas();
+window.addEventListener('resize', initWaveformCanvas);
+drawWaveform();
 
 // ── Dynamic glow intensity for speaking state ──
 function updateSpeakingGlow() {
@@ -836,7 +845,6 @@ async function init() {
   ensureAudioCtx();
 
   setState('listening');
-  drawWaveform();
 
   console.log('VAD initialized and listening');
 }
@@ -865,7 +873,7 @@ function setAppMode(mode) {
     btnAvatarMode?.classList.remove('active');
     if (avatarStage) avatarStage.style.display = 'none';
     if (mayaActions) mayaActions.style.display = 'none';
-    if (avatarController) avatarController.looping = false;
+    if (avatarController) avatarController.stop();
   } else {
     viewportWrap.className = `viewport-wrap view-avatar ${state}`;
     btnAvatarMode?.classList.add('active');
@@ -874,11 +882,12 @@ function setAppMode(mode) {
     if (mayaActions) mayaActions.style.display = 'flex';
     initAvatar();
     if (avatarController) {
-      avatarController.looping = true;
-      requestAnimationFrame(avatarController.animate);
-      avatarController.resize();
+      avatarController.start();
+      requestAnimationFrame(() => avatarController.resize());
+      setTimeout(() => avatarController.resize(), 80);
     }
   }
+  initWaveformCanvas();
 }
 
 btnVisualMode?.addEventListener('click', () => setAppMode('visual'));

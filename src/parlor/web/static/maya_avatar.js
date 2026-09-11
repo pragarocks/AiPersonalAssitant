@@ -295,6 +295,16 @@ export class MayaGestures {
   }
 }
 
+// ── Maya VRMA Animation Map ──
+const VRMA_MAP = {
+  clap: '/static/animations/Clapping.vrma',
+  thinking: '/static/animations/Thinking.vrma',
+  lookAround: '/static/animations/LookAround.vrma',
+  goodbye: '/static/animations/Goodbye.vrma',
+  relax: '/static/animations/Relax.vrma',
+  surprised: '/static/animations/Surprised.vrma',
+};
+
 // ── Full Maya Avatar Stage & Controller ──
 export class MayaAvatarController {
   constructor(container, options = {}) {
@@ -304,13 +314,13 @@ export class MayaAvatarController {
     this.scene = new THREE.Scene();
     this.clock = new THREE.Clock();
 
-    const w = container.clientWidth || 400;
-    const h = container.clientHeight || 400;
+    const w = container.clientWidth || 640;
+    const h = container.clientHeight || 360;
 
     // Camera setup framed head-and-shoulders
     this.camera = new THREE.PerspectiveCamera(28, w / h, 0.1, 50);
-    this.camera.position.set(0, 1.32, 1.1);
-    this.camera.lookAt(0, 1.25, 0);
+    this.camera.position.set(0, 1.30, 1.15);
+    this.camera.lookAt(0, 1.20, 0);
 
     // Renderer (transparent alpha)
     this.renderer = new THREE.WebGLRenderer({
@@ -330,7 +340,7 @@ export class MayaAvatarController {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-    this.controls.target.set(0, 1.25, 0);
+    this.controls.target.set(0, 1.20, 0);
     this.controls.minDistance = 0.5;
     this.controls.maxDistance = 2.5;
     this.controls.maxPolarAngle = Math.PI / 2 + 0.1;
@@ -345,8 +355,11 @@ export class MayaAvatarController {
     rim.position.set(-1, 0.8, -0.6);
     this.scene.add(rim);
 
-    // Engines
+    // Engines & State
     this.vrm = null;
+    this.mixer = null;
+    this.animationClips = new Map();
+    this.currentAction = null;
     this.lipsync = new MayaLipSync();
     this.aliveness = new MayaAliveness();
     this.expressions = new MayaExpressions();
@@ -363,12 +376,23 @@ export class MayaAvatarController {
     this.ro.observe(container);
 
     this.animate = this.animate.bind(this);
-    this.looping = true;
-    requestAnimationFrame(this.animate);
+    this.looping = false;
+    this.start();
 
     if (options.vrmUrl) {
       this.loadVRM(options.vrmUrl);
     }
+  }
+
+  start() {
+    if (this.looping) return;
+    this.looping = true;
+    this.clock.start();
+    requestAnimationFrame(this.animate);
+  }
+
+  stop() {
+    this.looping = false;
   }
 
   resize() {
@@ -398,11 +422,17 @@ export class MayaAvatarController {
       VRMUtils.rotateVRM0(vrm);
 
       if (this.vrm) {
+        if (this.mixer) {
+          this.mixer.stopAllAction();
+          this.mixer = null;
+        }
+        this.animationClips.clear();
         this.scene.remove(this.vrm.scene);
         VRMUtils.deepDispose(this.vrm.scene);
       }
 
       this.vrm = vrm;
+      this.mixer = new THREE.AnimationMixer(this.vrm.scene);
       this.scene.add(vrm.scene);
       if (vrm.lookAt) vrm.lookAt.target = this.camera;
 
@@ -419,7 +449,7 @@ export class MayaAvatarController {
   }
 
   applyRestPose(vrm) {
-    const h = vrm.humanoid;
+    const h = vrm?.humanoid;
     if (!h) return;
     h.getNormalizedBoneNode('leftUpperArm')?.rotation.set(0, 0, 1.2);
     h.getNormalizedBoneNode('rightUpperArm')?.rotation.set(0, 0, -1.2);
@@ -428,13 +458,45 @@ export class MayaAvatarController {
   }
 
   frameToVRM(vrm) {
+    vrm.scene.updateMatrixWorld(true);
     const head = vrm.humanoid?.getNormalizedBoneNode('head');
     const headPos = new THREE.Vector3(0, 1.35, 0);
-    head?.getWorldPosition(headPos);
-    const y = headPos.y;
-    this.camera.position.set(0, y - 0.05, 1.1);
+    if (head) head.getWorldPosition(headPos);
+    const y = (headPos.y > 0.5 && headPos.y < 2.5) ? headPos.y : 1.35;
+    this.camera.position.set(0, y - 0.05, 1.15);
     this.controls.target.set(0, y - 0.15, 0);
     this.controls.update();
+  }
+
+  async playVRMA(url) {
+    if (!this.vrm || !this.mixer) return false;
+    try {
+      let clip = this.animationClips.get(url);
+      if (!clip) {
+        const gltf = await this.loader.loadAsync(url);
+        const vrmAnim = gltf.userData.vrmAnimation;
+        if (vrmAnim) {
+          clip = createVRMAnimationClip(vrmAnim, this.vrm);
+          this.animationClips.set(url, clip);
+        }
+      }
+      if (clip) {
+        if (this.currentAction) {
+          this.currentAction.fadeOut(0.2);
+        }
+        const action = this.mixer.clipAction(clip);
+        action.reset();
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+        action.fadeIn(0.2);
+        action.play();
+        this.currentAction = action;
+        return true;
+      }
+    } catch (err) {
+      console.warn('[Maya] Failed to load/play VRMA:', url, err);
+    }
+    return false;
   }
 
   connectAnalyser(analyser) {
@@ -449,7 +511,12 @@ export class MayaAvatarController {
     this.expressions.setEmotion(emotion);
   }
 
-  playGesture(gesture) {
+  async playGesture(gesture) {
+    const vrmaUrl = VRMA_MAP[gesture];
+    if (vrmaUrl) {
+      const ok = await this.playVRMA(vrmaUrl);
+      if (ok) return;
+    }
     this.gestures.play(gesture, this.vrm);
   }
 
@@ -479,6 +546,7 @@ export class MayaAvatarController {
       this.aliveness.update(dt, this.vrm);
       this.expressions.update(dt, this.vrm);
       this.gestures.update(dt, this.vrm);
+      if (this.mixer) this.mixer.update(dt);
       this.vrm.update(dt);
     }
 
@@ -488,8 +556,12 @@ export class MayaAvatarController {
   }
 
   destroy() {
-    this.looping = false;
+    this.stop();
     if (this.ro) this.ro.disconnect();
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      this.mixer = null;
+    }
     if (this.renderer) this.renderer.dispose();
     if (this.vrm) VRMUtils.deepDispose(this.vrm.scene);
   }
