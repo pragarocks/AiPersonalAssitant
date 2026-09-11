@@ -867,19 +867,64 @@ function initAvatar() {
 
 function setAppMode(mode) {
   currentMode = mode;
+  const pipLabel = $('pipLabel');
+
   if (mode === 'visual') {
     viewportWrap.className = `viewport-wrap view-visual ${state}`;
     btnVisualMode?.classList.add('active');
     btnAvatarMode?.classList.remove('active');
-    if (avatarStage) avatarStage.style.display = 'none';
-    if (mayaActions) mayaActions.style.display = 'none';
+
+    if (avatarStage) {
+      avatarStage.style.display = 'none';
+    }
+    if (mayaActions) {
+      mayaActions.style.display = 'none';
+    }
+    if (videoWrap) {
+      videoWrap.style.position = 'absolute';
+      videoWrap.style.inset = '0';
+      videoWrap.style.width = '100%';
+      videoWrap.style.height = '100%';
+      videoWrap.style.top = '0';
+      videoWrap.style.right = '0';
+      videoWrap.style.borderRadius = '18px';
+      videoWrap.style.border = 'none';
+      videoWrap.style.boxShadow = 'none';
+      videoWrap.style.zIndex = '2';
+    }
+    if (pipLabel) pipLabel.style.display = 'none';
     if (avatarController) avatarController.stop();
   } else {
     viewportWrap.className = `viewport-wrap view-avatar ${state}`;
     btnAvatarMode?.classList.add('active');
     btnVisualMode?.classList.remove('active');
-    if (avatarStage) avatarStage.style.display = 'block';
-    if (mayaActions) mayaActions.style.display = 'flex';
+
+    if (avatarStage) {
+      avatarStage.style.display = 'block';
+      avatarStage.style.position = 'absolute';
+      avatarStage.style.inset = '0';
+      avatarStage.style.width = '100%';
+      avatarStage.style.height = '100%';
+      avatarStage.style.zIndex = '2';
+    }
+    if (mayaActions) {
+      mayaActions.style.display = 'flex';
+    }
+    if (videoWrap) {
+      videoWrap.style.position = 'absolute';
+      videoWrap.style.top = '14px';
+      videoWrap.style.right = '14px';
+      videoWrap.style.left = 'auto';
+      videoWrap.style.bottom = 'auto';
+      videoWrap.style.width = '140px';
+      videoWrap.style.height = '105px';
+      videoWrap.style.borderRadius = '12px';
+      videoWrap.style.border = '1px solid rgba(255, 255, 255, 0.25)';
+      videoWrap.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.8)';
+      videoWrap.style.zIndex = '10';
+    }
+    if (pipLabel) pipLabel.style.display = 'block';
+
     initAvatar();
     if (avatarController) {
       avatarController.start();

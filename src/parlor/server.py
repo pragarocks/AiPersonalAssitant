@@ -314,13 +314,25 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan)
+
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/") or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "web" / "static"), name="static")
 
 
 @app.get("/")
 async def root():
     html = (Path(__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
-    return HTMLResponse(content=html.replace("{{model}}", llama.model_label()))
+    content = html.replace("{{model}}", llama.model_label())
+    content = content.replace("{{v}}", str(int(time.time())))
+    return HTMLResponse(content=content, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 def turn_instruction(msg: dict, has_image: bool, has_audio: bool, history: list | None = None) -> str:
